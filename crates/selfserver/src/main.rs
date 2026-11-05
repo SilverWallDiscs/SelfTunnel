@@ -19,7 +19,7 @@ use subtle::ConstantTimeEq;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
-    sync::{mpsc, oneshot, watch, Mutex},
+    sync::{mpsc, oneshot, watch, Mutex, Semaphore},
     time::{interval, timeout},
 };
 use tokio_rustls::{rustls, TlsAcceptor};
