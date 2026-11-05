@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    let bind: SocketAddr = env::var("SELFServer_CONTROL_BIND")
+    let bind: SocketAddr = env::var("SELFTUNNEL_CONTROL_BIND")
         .unwrap_or_else(|_| "0.0.0.0:9000".to_owned())
         .parse()?;
 
