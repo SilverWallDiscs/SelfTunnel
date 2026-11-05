@@ -22,7 +22,6 @@ use tokio_rustls::{
     rustls::{self, pki_types::ServerName, RootCertStore},
     TlsConnector,
 };
-use tracing::{info, warn};
 
 const MAX_STREAM_BUFFER: usize = 32;
 
@@ -133,7 +132,7 @@ impl SelfTunnelApp {
                                 retry_seconds = 2;
                             }
                             Err(err) => {
-                                warn!(error = %err, "SelfServer connection ended");
+                                eprintln!("SelfServer connection ended: {err}");
                                 let _ = status_tx.send(format!("Disconnected: {err}"));
                             }
                         }
@@ -587,7 +586,7 @@ fn spawn_local_stream(
                             }
                         }
                         Err(err) => {
-                            warn!(stream_id = id, error = %err, "local service read failed");
+                            eprintln!("local service stream {id} read failed: {err}");
                             break;
                         }
                     }
@@ -614,17 +613,17 @@ fn save_config(config: &AppConfig) {
     let path = config_path();
     if let Some(parent) = path.parent() {
         if let Err(err) = fs::create_dir_all(parent) {
-            warn!(error = %err, "could not create configuration directory");
+            eprintln!("could not create configuration directory: {err}");
             return;
         }
     }
     match toml::to_string_pretty(config) {
         Ok(contents) => {
             if let Err(err) = fs::write(&path, contents) {
-                warn!(error = %err, "could not save SelfTunnel configuration");
+                eprintln!("could not save SelfTunnel configuration: {err}");
             }
         }
-        Err(err) => warn!(error = %err, "could not serialize SelfTunnel configuration"),
+        Err(err) => eprintln!("could not serialize SelfTunnel configuration: {err}"),
     }
 }
 
