@@ -192,7 +192,7 @@ async fn run_control_session(
         alive: alive_rx.clone(),
     };
 
-    let writer_task = tokio::spawn(async move {
+    let mut writer_task = tokio::spawn(async move {
         while let Some(frame) = out_rx.recv().await {
             if let Err(err) = write_frame(&mut writer, &frame).await {
                 return Err::<(), std::io::Error>(err);
@@ -222,14 +222,14 @@ async fn run_control_session(
                     break Err(anyhow!("control writer stopped"));
                 }
             }
-            writer_result = &mut tokio::time::sleep(Duration::from_millis(0)), if writer_task.is_finished() => {
-                let _ = writer_result;
-                break Err(anyhow!("control writer stopped"));
+            writer_result = &mut writer_task => {
+                break Err(anyhow!("control writer stopped: {writer_result:?}"));
             }
         }
     };
 
     alive_tx.send_replace(true);
+    streams.lock().await.clear();
     session_state.send_replace(None);
     writer_task.abort();
     result
