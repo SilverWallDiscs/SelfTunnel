@@ -23,7 +23,7 @@ use tokio_rustls::{
     TlsConnector,
 };
 
-const MAX_STREAM_BUFFER: usize = 32;
+const MAX_STREAM_BUFFER: usize = 8;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -467,34 +467,51 @@ where
         Ok(())
     });
 
+    // Keep frame reads independent from heartbeat timers. read_exact is not
+    // allowed to be cancelled halfway through a frame on the shared tunnel.
+    let (in_tx, mut in_rx) = mpsc::channel::<std::result::Result<Frame, String>>(256);
+    let mut reader_task = tokio::spawn(async move {
+        loop {
+            let frame = match read_frame(&mut reader).await {
+                Ok(frame) => Ok(frame),
+                Err(err) => Err(err.to_string()),
+            };
+            let should_stop = frame.is_err();
+            if in_tx.send(frame).await.is_err() || should_stop {
+                break;
+            }
+        }
+    });
+
     let mut heartbeat = interval(Duration::from_secs(25));
     let result: Result<()> = loop {
         tokio::select! {
-            incoming = read_frame(&mut reader) => {
+            incoming = in_rx.recv() => {
                 match incoming {
-                    Ok(Frame::Open { id }) => {
+                    Some(Ok(Frame::Open { id })) => {
                         spawn_local_stream(id, local_address.clone(), streams.clone(), out_tx.clone());
                     }
-                    Ok(Frame::Data { id, bytes }) => {
+                    Some(Ok(Frame::Data { id, bytes })) => {
                         let sender = streams.lock().await.get(&id).cloned();
                         if let Some(sender) = sender {
-                            if sender.send(bytes).await.is_err() {
+                            if sender.try_send(bytes).is_err() {
                                 streams.lock().await.remove(&id);
                                 let _ = out_tx.send(Frame::Close { id }).await;
                             }
                         }
                     }
-                    Ok(Frame::Close { id }) => {
+                    Some(Ok(Frame::Close { id })) => {
                         streams.lock().await.remove(&id);
                     }
-                    Ok(Frame::Ping) => {
+                    Some(Ok(Frame::Ping)) => {
                         if out_tx.send(Frame::Pong).await.is_err() {
                             break Err(anyhow!("control writer stopped"));
                         }
                     }
-                    Ok(Frame::Pong) => {}
-                    Ok(Frame::OpenOk { .. }) | Ok(Frame::OpenErr { .. }) => {}
-                    Err(err) => break Err(err.into()),
+                    Some(Ok(Frame::Pong)) => {}
+                    Some(Ok(Frame::OpenOk { .. })) | Some(Ok(Frame::OpenErr { .. })) => {}
+                    Some(Err(message)) => break Err(anyhow!("control read failed: {message}")),
+                    None => break Err(anyhow!("control reader stopped")),
                 }
             }
             _ = heartbeat.tick() => {
@@ -509,6 +526,7 @@ where
     };
 
     streams.lock().await.clear();
+    reader_task.abort();
     writer_task.abort();
     result
 }
