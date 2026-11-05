@@ -105,7 +105,24 @@ export SELFTUNNEL_TLS_KEY="/etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem"
 ./target/release/selfserver
 ```
 
-For a permanent service, use the example in [deploy/selfserver.service](deploy/selfserver.service) and [deploy/selfserver.env.example](deploy/selfserver.env.example). Store the real environment file outside the repository with restrictive permissions (for example, `chmod 600`); never commit the token or TLS private key.
+For a permanent service, install the binary and systemd unit (the service runs as a dedicated unprivileged account):
+
+```sh
+sudo useradd --system --home /nonexistent --shell /usr/sbin/nologin selfserver
+sudo install -d -o root -g selfserver -m 0750 /etc/selfserver
+sudo install -d -o root -g root -m 0755 /opt/selftunnel
+sudo install -o root -g root -m 0755 target/release/selfserver /opt/selftunnel/selfserver
+sudo install -o root -g selfserver -m 0640 deploy/selfserver.env.example /etc/selfserver/selfserver.env
+sudoedit /etc/selfserver/selfserver.env
+sudo install -o root -g root -m 0644 deploy/selfserver.service /etc/systemd/system/selfserver.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now selfserver
+sudo systemctl status selfserver
+```
+
+The unit includes the `ssl-cert` supplementary group so it can read the standard Let's Encrypt private-key permissions. Confirm that this group exists on your distribution; for certificates stored elsewhere, grant the `selfserver` user read access to the certificate and key without making the private key world-readable.
+
+In Oracle Cloud, add ingress rules for TCP `9000` and `25565` to the instance's Network Security Group or Security List. If UFW is enabled, run `sudo ufw allow 9000/tcp` and `sudo ufw allow 25565/tcp`. Never commit the real environment file, token or TLS private key.
 
 ## Configure SelfTunnel on Windows
 
