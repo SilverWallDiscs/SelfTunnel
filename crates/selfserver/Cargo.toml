@@ -9,6 +9,11 @@ name = "selfserver"
 path = "src/main.rs"
 
 [dependencies]
+anyhow.workspace = true
+rustls-pemfile.workspace = true
+selfprotocol = { path = "../selfprotocol" }
+subtle.workspace = true
 tokio.workspace = true
+tokio-rustls.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
