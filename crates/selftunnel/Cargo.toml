@@ -1,0 +1,12 @@
+[package]
+name = "selftunnel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "selftunnel"
+path = "src/main.rs"
+
+[dependencies]
+eframe = "0.31"
