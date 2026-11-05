@@ -28,7 +28,7 @@ use tracing::{error, info, warn};
 const CONTROL_DEFAULT: &str = "0.0.0.0:9000";
 const PUBLIC_DEFAULT: &str = "0.0.0.0:25565";
 const OPEN_TIMEOUT: Duration = Duration::from_secs(12);
-const MAX_STREAM_BUFFER: usize = 32;
+const MAX_STREAM_BUFFER: usize = 8;
 const MAX_PLAYER_CONNECTIONS: usize = 128;
 
 struct StreamEntry {
@@ -212,20 +212,38 @@ async fn run_control_session(
         Ok(())
     });
 
+    // Keep frame reads in their own task: read_exact must never be cancelled
+    // by the heartbeat branch of select!, or a partially received frame can
+    // desynchronise the multiplexed protocol.
+    let (in_tx, mut in_rx) = mpsc::channel::<std::result::Result<Frame, String>>(256);
+    let mut reader_task = tokio::spawn(async move {
+        loop {
+            let frame = match read_frame(&mut reader).await {
+                Ok(frame) => Ok(frame),
+                Err(err) => Err(err.to_string()),
+            };
+            let should_stop = frame.is_err();
+            if in_tx.send(frame).await.is_err() || should_stop {
+                break;
+            }
+        }
+    });
+
     session_state.send_replace(Some(session));
     info!(%peer, "SelfTunnel client authenticated and ready");
 
     let mut heartbeat = interval(Duration::from_secs(25));
     let result: Result<()> = loop {
         tokio::select! {
-            incoming = read_frame(&mut reader) => {
+            incoming = in_rx.recv() => {
                 match incoming {
-                    Ok(frame) => {
+                    Some(Ok(frame)) => {
                         if let Err(err) = handle_control_frame(frame, &out_tx, &streams).await {
                             break Err(err);
                         }
                     }
-                    Err(err) => break Err(err.into()),
+                    Some(Err(message)) => break Err(anyhow!("control read failed: {message}")),
+                    None => break Err(anyhow!("control reader stopped")),
                 }
             }
             _ = heartbeat.tick() => {
@@ -242,6 +260,7 @@ async fn run_control_session(
     alive_tx.send_replace(true);
     streams.lock().await.clear();
     session_state.send_replace(None);
+    reader_task.abort();
     writer_task.abort();
     result
 }
@@ -270,7 +289,9 @@ async fn handle_control_frame(
         Frame::Data { id, bytes } => {
             let sender = streams.lock().await.get(&id).map(|entry| entry.inbound_tx.clone());
             if let Some(sender) = sender {
-                if sender.send(bytes).await.is_err() {
+                // Never await a per-player queue here: a slow client must not
+                // stop the one shared control reader from serving other players.
+                if sender.try_send(bytes).is_err() {
                     streams.lock().await.remove(&id);
                     let _ = out_tx.send(Frame::Close { id }).await;
                 }
