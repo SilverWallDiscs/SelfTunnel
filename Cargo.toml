@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/selfprotocol",
     "crates/selfserver",
     "crates/selftunnel",
 ]
@@ -12,6 +13,15 @@ license = "MIT"
 authors = ["SilverWallDiscs"]
 
 [workspace.dependencies]
+anyhow = "1"
+dirs = "6"
+eframe = "0.31"
+rustls-pemfile = "2.2"
+serde = { version = "1", features = ["derive"] }
+subtle = "2.6"
 tokio = { version = "1.44", features = ["full"] }
+tokio-rustls = "0.26"
+toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+webpki-roots = "0.26"
