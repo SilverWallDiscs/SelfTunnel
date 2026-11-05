@@ -1,0 +1,23 @@
+[Unit]
+Description=SelfTunnel public TCP relay
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=selfserver
+Group=selfserver
+WorkingDirectory=/opt/selftunnel
+EnvironmentFile=/etc/selfserver/selfserver.env
+ExecStart=/opt/selftunnel/selfserver
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/etc/letsencrypt
+ReadWritePaths=/var/lib/selfserver
+
+[Install]
+WantedBy=multi-user.target
