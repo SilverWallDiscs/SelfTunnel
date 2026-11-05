@@ -76,6 +76,8 @@ openssl req -x509 -newkey rsa:3072 -sha256 -days 365 -nodes \
 
 Copy `server.crt` to the Windows PC and select it in the **Custom CA certificate** field. Keep `server.key` only on the Oracle VM.
 
+For a copy-paste first test on an Oracle Cloud ARM64 instance, follow [the Oracle quick-test guide](docs/ORACLE-QUICK-TEST.md). It uses a temporary test CA and runs SelfServer in the foreground before setting up systemd.
+
 ## Run SelfServer on Oracle Linux/Ubuntu
 
 Build the Linux binary on the Oracle VM (this also builds for the VM's CPU architecture):
