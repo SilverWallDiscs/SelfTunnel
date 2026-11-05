@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/selfserver",
+    "crates/selftunnel",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["SilverWallDiscs"]
+
+[workspace.dependencies]
+tokio = { version = "1.44", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
