@@ -82,7 +82,9 @@ Build the Linux binary on the Oracle VM (this also builds for the VM's CPU archi
 
 ```sh
 sudo apt update
-sudo apt install -y build-essential cmake perl pkg-config git
+sudo apt install -y build-essential cmake perl pkg-config git curl
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
 git clone https://github.com/SilverWallDiscs/SelfTunnel.git
 cd SelfTunnel
 cargo build --release -p selfserver
