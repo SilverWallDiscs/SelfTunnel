@@ -29,6 +29,7 @@ const CONTROL_DEFAULT: &str = "0.0.0.0:9000";
 const PUBLIC_DEFAULT: &str = "0.0.0.0:25565";
 const OPEN_TIMEOUT: Duration = Duration::from_secs(12);
 const MAX_STREAM_BUFFER: usize = 32;
+const MAX_PLAYER_CONNECTIONS: usize = 128;
 
 struct StreamEntry {
     inbound_tx: mpsc::Sender<Vec<u8>>,
@@ -88,16 +89,26 @@ async fn main() -> Result<()> {
     let session_gate = Arc::new(Mutex::new(()));
 
     let public_state = session_rx.clone();
+    let player_slots = Arc::new(Semaphore::new(MAX_PLAYER_CONNECTIONS));
     tokio::spawn(async move {
         loop {
             match public_listener.accept().await {
                 Ok((socket, peer)) => {
                     let state = public_state.clone();
-                    tokio::spawn(async move {
-                        if let Err(err) = handle_public_connection(socket, peer, state).await {
-                            warn!(%peer, error = %err, "public connection ended");
+                    match player_slots.clone().try_acquire_owned() {
+                        Ok(slot) => {
+                            tokio::spawn(async move {
+                                let _slot = slot;
+                                if let Err(err) = handle_public_connection(socket, peer, state).await {
+                                    warn!(%peer, error = %err, "public connection ended");
+                                }
+                            });
                         }
-                    });
+                        Err(_) => {
+                            warn!(%peer, "connection limit reached; rejecting player");
+                            drop(socket);
+                        }
+                    }
                 }
                 Err(err) => {
                     error!(error = %err, "public listener accept failed");
