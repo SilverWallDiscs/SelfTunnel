@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::BufReader,
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     path::PathBuf,
     sync::mpsc as std_mpsc,
     thread,
@@ -403,8 +403,12 @@ async fn connect_tls(config: &AppConfig) -> Result<tokio_rustls::client::TlsStre
     })?;
     socket.set_nodelay(true)?;
 
-    let server_name = ServerName::try_from(host.clone())
-        .map_err(|_| anyhow!("invalid TLS server name: {host}"))?;
+    let server_name = if let Ok(ip) = host.parse::<IpAddr>() {
+        ServerName::IpAddress(ip.into())
+    } else {
+        ServerName::try_from(host.clone())
+            .map_err(|_| anyhow!("invalid TLS server name: {host}"))?
+    };
     let connector = TlsConnector::from(std::sync::Arc::new(tls_config));
     let tls = timeout(Duration::from_secs(12), connector.connect(server_name, socket))
         .await
@@ -505,6 +509,7 @@ where
         }
     };
 
+    streams.lock().await.clear();
     writer_task.abort();
     result
 }
