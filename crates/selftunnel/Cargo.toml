@@ -9,4 +9,16 @@ name = "selftunnel"
 path = "src/main.rs"
 
 [dependencies]
-eframe = "0.31"
+anyhow.workspace = true
+dirs.workspace = true
+eframe.workspace = true
+rustls-pemfile.workspace = true
+serde.workspace = true
+selfprotocol = { path = "../selfprotocol" }
+tokio.workspace = true
+tokio-rustls.workspace = true
+toml.workspace = true
+webpki-roots.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
