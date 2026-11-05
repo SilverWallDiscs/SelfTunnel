@@ -6,21 +6,51 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  check-server:
-    name: Check SelfServer (Linux)
+  test-protocol:
+    name: Test shared protocol
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check -p selfserver
+      - run: cargo test -p selfprotocol
 
-  check-client:
-    name: Check SelfTunnel (Windows)
+  build-server:
+    name: Build SelfServer (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p selfserver
+      - uses: actions/upload-artifact@v4
+        with:
+          name: selfserver-linux-${{ matrix.arch }}
+          path: target/release/selfserver
+          if-no-files-found: error
+
+  build-client:
+    name: Build SelfTunnel (Windows x64)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check -p selftunnel
+      - run: cargo build --release -p selftunnel
+      - uses: actions/upload-artifact@v4
+        with:
+          name: selftunnel-windows-x64
+          path: target/release/selftunnel.exe
+          if-no-files-found: error
